@@ -11,7 +11,7 @@ An intelligent document summarization application that processes PDFs, images, a
 - Mobile-responsive design
 
 ## 🚀 Live Demo
-[View Live Application](doc-summary.netlify.app)
+[View Live Application]([doc-summary.netlify.app](https://doc-summary.netlify.app))
 
 ## 🛠 Technologies Used
 - HTML5, CSS3, JavaScript
@@ -33,4 +33,5 @@ git clone [your-repo-url]
 # Open with live server
 
 # Right-click index.html → "Open with Live Server"
+
 
