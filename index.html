@@ -1,0 +1,1170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document Summary Assistant</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/4.1.1/tesseract.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+            overflow: hidden;
+            animation: slideUp 0.6s ease-out;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            padding: 40px;
+            text-align: center;
+            color: white;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            font-weight: 300;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0;
+            min-height: 600px;
+        }
+
+        .upload-section {
+            padding: 40px;
+            border-right: 1px solid #e0e0e0;
+        }
+
+        .results-section {
+            padding: 40px;
+            background: #f8f9fa;
+        }
+
+        .upload-zone {
+            border: 3px dashed #ddd;
+            border-radius: 15px;
+            padding: 60px 30px;
+            text-align: center;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .upload-zone::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(74, 172, 254, 0.1), transparent);
+            transition: left 0.5s;
+        }
+
+        .upload-zone:hover {
+            border-color: #4facfe;
+            background: rgba(74, 172, 254, 0.05);
+            transform: translateY(-2px);
+        }
+
+        .upload-zone:hover::before {
+            left: 100%;
+        }
+
+        .upload-zone.dragover {
+            border-color: #4facfe;
+            background: rgba(74, 172, 254, 0.1);
+            transform: scale(1.02);
+        }
+
+        .upload-icon {
+            font-size: 3rem;
+            color: #4facfe;
+            margin-bottom: 20px;
+            transition: transform 0.3s ease;
+        }
+
+        .upload-zone:hover .upload-icon {
+            transform: scale(1.1);
+        }
+
+        .upload-text {
+            font-size: 1.2rem;
+            color: #666;
+            margin-bottom: 15px;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(79, 172, 254, 0.3);
+            margin: 5px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(79, 172, 254, 0.4);
+        }
+
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .btn.secondary {
+            background: linear-gradient(135deg, #ff6b6b 0%, #ff8e8e 100%);
+            box-shadow: 0 4px 15px rgba(255, 107, 107, 0.3);
+        }
+
+        .sample-docs {
+            margin: 20px 0;
+            padding: 20px;
+            background: rgba(79, 172, 254, 0.05);
+            border-radius: 15px;
+            border: 1px solid rgba(79, 172, 254, 0.2);
+        }
+
+        .sample-docs h3 {
+            color: #333;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .sample-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        .controls {
+            margin: 30px 0;
+        }
+
+        .control-group {
+            margin-bottom: 20px;
+        }
+
+        .control-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .length-selector {
+            display: flex;
+            gap: 10px;
+        }
+
+        .length-option {
+            flex: 1;
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: white;
+        }
+
+        .length-option:hover {
+            border-color: #4facfe;
+            background: rgba(79, 172, 254, 0.05);
+        }
+
+        .length-option.active {
+            border-color: #4facfe;
+            background: #4facfe;
+            color: white;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: #e0e0e0;
+            border-radius: 3px;
+            overflow: hidden;
+            margin: 20px 0;
+            display: none;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            width: 0%;
+            transition: width 0.3s ease;
+            animation: shimmer 1.5s infinite;
+        }
+
+        @keyframes shimmer {
+            0% {
+                transform: translateX(-100%);
+            }
+            100% {
+                transform: translateX(100%);
+            }
+        }
+
+        .status-message {
+            text-align: center;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            display: none;
+        }
+
+        .status-message.info {
+            background: #e3f2fd;
+            color: #1976d2;
+            border: 1px solid #bbdefb;
+        }
+
+        .status-message.error {
+            background: #ffebee;
+            color: #c62828;
+            border: 1px solid #ffcdd2;
+        }
+
+        .status-message.success {
+            background: #e8f5e8;
+            color: #2e7d32;
+            border: 1px solid #c8e6c9;
+        }
+
+        .summary-container {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            margin-top: 20px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+            display: none;
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .summary-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .summary-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .word-count {
+            background: #4facfe;
+            color: white;
+            padding: 5px 12px;
+            border-radius: 15px;
+            font-size: 0.9rem;
+        }
+
+        .summary-text {
+            line-height: 1.7;
+            color: #444;
+            font-size: 1rem;
+            margin-bottom: 20px;
+        }
+
+        .key-points {
+            margin-top: 25px;
+        }
+
+        .key-points h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.1rem;
+        }
+
+        .key-point {
+            background: linear-gradient(135deg, rgba(79, 172, 254, 0.1) 0%, rgba(0, 242, 254, 0.1) 100%);
+            padding: 12px 15px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            border-left: 4px solid #4facfe;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #4facfe;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+            display: none;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .file-info {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            border: 1px solid #e0e0e0;
+            display: none;
+        }
+
+        .file-info h4 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .file-details {
+            font-size: 0.9rem;
+            color: #666;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            justify-content: center;
+        }
+
+        .export-btn {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+                gap: 0;
+            }
+            
+            .upload-section {
+                border-right: none;
+                border-bottom: 1px solid #e0e0e0;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .upload-zone {
+                padding: 40px 20px;
+            }
+
+            .length-selector {
+                flex-direction: column;
+            }
+
+            .sample-buttons {
+                flex-direction: column;
+            }
+
+            .action-buttons {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📄 Document Summary Assistant</h1>
+            <p>Upload PDFs, images, or text files to generate intelligent summaries</p>
+        </div>
+
+        <div class="main-content">
+            <div class="upload-section">
+                <div class="upload-zone" id="uploadZone">
+                    <div class="upload-icon">📁</div>
+                    <div class="upload-text">Drag & drop your document here</div>
+                    <div style="margin: 15px 0; color: #999;">Supports PDF, Images (JPG, PNG), and Text files</div>
+                    <button class="btn" onclick="document.getElementById('fileInput').click()">
+                        Choose File
+                    </button>
+                    <input type="file" id="fileInput" class="file-input" accept=".pdf,.jpg,.jpeg,.png,.gif,.bmp,.tiff,.txt,.doc,.docx">
+                </div>
+
+                <div class="sample-docs">
+                    <h3>📋 Try Sample Documents</h3>
+                    <div class="sample-buttons">
+                        <button class="btn secondary" onclick="loadSampleDocument('research')">
+                            🔬 Research Paper
+                        </button>
+                        <button class="btn secondary" onclick="loadSampleDocument('business')">
+                            💼 Business Report
+                        </button>
+                        <button class="btn secondary" onclick="loadSampleDocument('news')">
+                            📰 News Article
+                        </button>
+                        <button class="btn secondary" onclick="loadSampleDocument('technical')">
+                            ⚙️ Technical Doc
+                        </button>
+                    </div>
+                </div>
+
+                <div class="file-info" id="fileInfo">
+                    <h4>📋 Document Information</h4>
+                    <div class="file-details" id="fileDetails"></div>
+                </div>
+
+                <div class="controls">
+                    <div class="control-group">
+                        <label>Summary Length:</label>
+                        <div class="length-selector">
+                            <div class="length-option active" data-length="short">
+                                <strong>Short</strong><br>
+                                <small>50-75 words</small>
+                            </div>
+                            <div class="length-option" data-length="medium">
+                                <strong>Medium</strong><br>
+                                <small>100-150 words</small>
+                            </div>
+                            <div class="length-option" data-length="long">
+                                <strong>Long</strong><br>
+                                <small>200-250 words</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <button class="btn" id="generateBtn" onclick="generateSummary()" disabled>
+                    🚀 Generate Summary
+                </button>
+
+                <div class="progress-bar" id="progressBar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+
+                <div class="spinner" id="spinner"></div>
+
+                <div class="status-message" id="statusMessage"></div>
+            </div>
+
+            <div class="results-section">
+                <h2>📊 Summary Results</h2>
+                <p style="color: #666; margin-bottom: 20px;">Your generated summary will appear here</p>
+
+                <div class="summary-container" id="summaryContainer">
+                    <div class="summary-header">
+                        <div class="summary-title">Document Summary</div>
+                        <div class="word-count" id="wordCount">0 words</div>
+                    </div>
+                    <div class="summary-text" id="summaryText"></div>
+                    <div class="key-points" id="keyPoints"></div>
+                    
+                    <div class="action-buttons">
+                        <button class="btn export-btn" onclick="copyToClipboard()">
+                            📋 Copy Summary
+                        </button>
+                        <button class="btn export-btn" onclick="downloadSummary()">
+                            💾 Download Summary
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let currentFile = null;
+        let extractedText = '';
+        let selectedLength = 'short';
+        let currentDocumentTitle = '';
+
+        // Check if we're running on a live server (not in Claude environment)
+        const isLiveServer = window.location.protocol !== 'https:' || !window.location.hostname.includes('claudeusercontent');
+
+        // Set up PDF.js worker only if on live server
+        if (isLiveServer && typeof pdfjsLib !== 'undefined') {
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        }
+
+        // Sample documents database
+        const sampleDocuments = {
+            research: {
+                title: "Climate Change Research Paper",
+                content: `Climate change represents one of the most significant challenges of our time, with far-reaching implications for ecosystems, human societies, and economic systems worldwide. The increasing concentration of greenhouse gases in the atmosphere, primarily carbon dioxide from fossil fuel combustion, has led to unprecedented global warming trends over the past century. Scientific evidence overwhelmingly supports the conclusion that human activities are the primary driver of contemporary climate change. Temperature records show that the last decade was the warmest on record, with global average temperatures rising by approximately 1.1 degrees Celsius since pre-industrial times. This warming trend is not uniform across the globe, with Arctic regions experiencing disproportionately higher temperature increases, leading to accelerated ice sheet melting and permafrost thaw. The consequences of climate change are already visible in the form of more frequent and intense extreme weather events, including hurricanes, droughts, floods, and heatwaves. Sea-level rise, currently occurring at a rate of about 3.3 millimeters per year, poses significant threats to coastal communities and infrastructure worldwide. Ocean acidification, often called the "other CO2 problem," is altering marine ecosystems and threatening marine biodiversity. The economic implications of climate change are substantial, with estimated global costs ranging from hundreds of billions to trillions of dollars annually. Mitigation strategies focus on reducing greenhouse gas emissions through renewable energy adoption, energy efficiency improvements, and carbon pricing mechanisms. Adaptation measures are equally important, involving infrastructure modifications, agricultural adjustments, and ecosystem-based solutions to build resilience against climate impacts. International cooperation through frameworks like the Paris Agreement is crucial for coordinating global efforts to address climate change effectively. The transition to a low-carbon economy presents both challenges and opportunities, requiring significant investments in clean technologies and sustainable development practices.`,
+                type: "Research Paper",
+                size: "12.5 KB"
+            },
+            business: {
+                title: "Q4 2024 Business Performance Report",
+                content: `Our company achieved exceptional performance in Q4 2024, marking a significant milestone in our growth trajectory. Revenue increased by 28% compared to the previous quarter, reaching $125 million, primarily driven by strong demand in our core product lines and successful expansion into new markets. The technology division led growth with a 35% increase in sales, attributed to the launch of our innovative AI-powered solutions that gained rapid market acceptance. Customer acquisition metrics showed remarkable improvement, with new customer registrations increasing by 45% and customer retention rates reaching an all-time high of 94%. Our digital transformation initiatives yielded substantial returns, with online sales channels contributing 65% of total revenue, up from 48% in the previous year. Operational efficiency improvements resulted in a 12% reduction in overhead costs while maintaining service quality standards. The company successfully completed three strategic acquisitions during the quarter, expanding our market presence in Europe and Asia-Pacific regions. Employee satisfaction surveys indicated positive trends, with engagement scores improving by 18% following the implementation of flexible work policies and enhanced benefit packages. Research and development investments totaling $18 million focused on next-generation products that are expected to launch in early 2025. Supply chain optimization efforts reduced delivery times by 22% and improved inventory turnover ratios. Sustainability initiatives gained momentum with a 30% reduction in carbon emissions and achievement of several environmental certifications. The financial position remains robust with strong cash flow generation and a healthy balance sheet. Market share expanded in key segments, with our flagship products capturing an additional 8% market share. Customer feedback highlighted product quality and customer service as key differentiators. Looking ahead, the company is well-positioned to capitalize on emerging market opportunities and maintain its growth momentum through strategic investments and operational excellence.`,
+                type: "Business Report",
+                size: "8.9 KB"
+            },
+            news: {
+                title: "Breakthrough in Renewable Energy Storage",
+                content: `Scientists at the University of Technology have announced a major breakthrough in renewable energy storage that could revolutionize the clean energy sector. The research team, led by Dr. Sarah Chen, has developed a new type of battery technology that can store energy from solar and wind sources with unprecedented efficiency and longevity. The innovative battery system uses advanced nanomaterials and a novel electrolyte composition that significantly improves energy density while reducing charging time by 70%. Initial tests demonstrate that these batteries can maintain 95% of their capacity after 10,000 charge cycles, far exceeding current lithium-ion technology. The breakthrough addresses one of the most critical challenges in renewable energy adoption: the intermittent nature of solar and wind power generation. Traditional energy storage systems suffer from degradation over time and limited capacity, making them expensive and less reliable for large-scale applications. The new technology could make renewable energy more viable for grid-scale storage, potentially accelerating the transition away from fossil fuels. Industry experts believe this development could reduce the cost of renewable energy storage by up to 60% within the next five years. Major energy companies have already expressed interest in licensing the technology for commercial applications. The research was funded by a $15 million government grant aimed at advancing clean energy solutions. Environmental groups have praised the breakthrough as a crucial step toward achieving carbon neutrality goals. The technology is expected to undergo pilot testing at several renewable energy facilities next year. If successful, commercial production could begin by 2027, marking a significant milestone in the global effort to combat climate change through clean energy innovation.`,
+                type: "News Article",
+                size: "6.2 KB"
+            },
+            technical: {
+                title: "API Documentation - User Authentication System",
+                content: `This document provides comprehensive technical documentation for the User Authentication System API, version 2.1. The authentication system implements OAuth 2.0 standards with additional security layers including multi-factor authentication and JWT token management. The API endpoints support RESTful principles and return responses in JSON format. Base URL for all endpoints is https://api.example.com/v2/auth. Authentication requires API keys obtained through the developer portal, with rate limiting applied at 1000 requests per hour per key. The login endpoint accepts POST requests to /login with email and password parameters, returning an access token valid for 1 hour and a refresh token valid for 30 days. Password requirements include minimum 8 characters with uppercase, lowercase, numeric, and special characters. Two-factor authentication is mandatory for admin accounts and optional for standard users. The system supports multiple authentication methods including email/password, social login (Google, Facebook, Twitter), and SAML integration for enterprise clients. Token validation occurs through the /validate endpoint, which returns user profile information and permissions. Logout functionality invalidates all active tokens for the user session. Password reset flow involves email verification with temporary tokens valid for 15 minutes. User registration requires email verification and CAPTCHA completion. The API includes comprehensive error handling with standard HTTP status codes and detailed error messages. Security features include IP whitelisting, device fingerprinting, and suspicious activity detection. Database encryption uses AES-256 standards for sensitive data storage. Session management implements sliding window expiration and concurrent session limits. Administrative endpoints provide user management capabilities including account suspension, role assignment, and audit logging. Performance monitoring tracks response times and error rates with automated alerting. The system undergoes regular security audits and penetration testing to ensure compliance with industry standards.`,
+                type: "Technical Documentation",
+                size: "9.8 KB"
+            }
+        };
+
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', function() {
+            setupEventListeners();
+            
+            // Show appropriate message based on environment
+            if (!isLiveServer) {
+                showStatus('Running in demo mode. For full functionality with file uploads, run on a live server.', 'info');
+            }
+        });
+
+        function setupEventListeners() {
+            const uploadZone = document.getElementById('uploadZone');
+            const fileInput = document.getElementById('fileInput');
+
+            // File input change event
+            fileInput.addEventListener('change', handleFileSelect);
+
+            // Drag and drop events
+            uploadZone.addEventListener('dragover', handleDragOver);
+            uploadZone.addEventListener('dragleave', handleDragLeave);
+            uploadZone.addEventListener('drop', handleDrop);
+
+            // Length selector events
+            document.querySelectorAll('.length-option').forEach(option => {
+                option.addEventListener('click', function() {
+                    document.querySelectorAll('.length-option').forEach(opt => opt.classList.remove('active'));
+                    this.classList.add('active');
+                    selectedLength = this.dataset.length;
+                });
+            });
+        }
+
+        function handleDragOver(e) {
+            e.preventDefault();
+            document.getElementById('uploadZone').classList.add('dragover');
+        }
+
+        function handleDragLeave(e) {
+            e.preventDefault();
+            document.getElementById('uploadZone').classList.remove('dragover');
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            document.getElementById('uploadZone').classList.remove('dragover');
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        }
+
+        function handleFileSelect(e) {
+            const file = e.target.files[0];
+            if (file) {
+                handleFile(file);
+            }
+        }
+
+        async function handleFile(file) {
+            // Validate file type
+            const allowedTypes = [
+                'application/pdf', 
+                'text/plain',
+                'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/bmp', 'image/tiff'
+            ];
+            
+            if (!allowedTypes.includes(file.type) && !file.name.match(/\.(txt|pdf|jpg|jpeg|png|gif|bmp|tiff)$/i)) {
+                showStatus('Please upload a PDF, image file (JPG, PNG, GIF, BMP, TIFF), or text file', 'error');
+                return;
+            }
+
+            // Validate file size (10MB limit)
+            if (file.size > 10 * 1024 * 1024) {
+                showStatus('File size must be less than 10MB', 'error');
+                return;
+            }
+
+            currentFile = file;
+            currentDocumentTitle = file.name;
+            
+            try {
+                showStatus('Processing file...', 'info');
+                showProgress(20);
+
+                if (file.type === 'text/plain' || file.name.toLowerCase().endsWith('.txt')) {
+                    // Handle text files
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        extractedText = e.target.result;
+                        displayFileInfo(file);
+                        document.getElementById('generateBtn').disabled = false;
+                        showStatus('Text file loaded successfully!', 'success');
+                        hideProgress();
+                    };
+                    reader.readAsText(file);
+                    
+                } else if (file.type === 'application/pdf') {
+                    // Handle PDF files
+                    if (isLiveServer && typeof pdfjsLib !== 'undefined') {
+                        extractedText = await extractTextFromPDF(file);
+                        displayFileInfo(file);
+                        document.getElementById('generateBtn').disabled = false;
+                        showStatus('PDF processed successfully!', 'success');
+                    } else {
+                        showStatus('PDF processing requires running on a live server. Try sample documents instead.', 'error');
+                    }
+                    hideProgress();
+                    
+                } else if (file.type.startsWith('image/')) {
+                    // Handle image files with OCR
+                    if (isLiveServer && typeof Tesseract !== 'undefined') {
+                        extractedText = await extractTextFromImage(file);
+                        displayFileInfo(file);
+                        document.getElementById('generateBtn').disabled = false;
+                        showStatus('Image processed with OCR successfully!', 'success');
+                    } else {
+                        showStatus('Image OCR processing requires running on a live server. Try sample documents instead.', 'error');
+                    }
+                    hideProgress();
+                }
+                
+            } catch (error) {
+                console.error('Error processing file:', error);
+                showStatus('Error processing file. Please try again or use sample documents.', 'error');
+                hideProgress();
+            }
+        }
+
+        async function extractTextFromPDF(file) {
+            showProgress(30);
+            
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = async function(e) {
+                    try {
+                        const typedArray = new Uint8Array(e.target.result);
+                        const pdf = await pdfjsLib.getDocument(typedArray).promise;
+                        let fullText = '';
+
+                        for (let i = 1; i <= pdf.numPages; i++) {
+                            const page = await pdf.getPage(i);
+                            const textContent = await page.getTextContent();
+                            const pageText = textContent.items.map(item => item.str).join(' ');
+                            fullText += pageText + '\n';
+                            
+                            // Update progress
+                            showProgress(30 + (i / pdf.numPages) * 40);
+                        }
+
+                        resolve(fullText.trim());
+                    } catch (error) {
+                        reject(error);
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            });
+        }
+
+        async function extractTextFromImage(file) {
+            showProgress(30);
+            
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    Tesseract.recognize(
+                        e.target.result,
+                        'eng',
+                        {
+                            logger: m => {
+                                if (m.status === 'recognizing text') {
+                                    showProgress(30 + (m.progress * 40));
+                                }
+                            }
+                        }
+                    ).then(({ data: { text } }) => {
+                        resolve(text.trim());
+                    }).catch(reject);
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function loadSampleDocument(type) {
+            const doc = sampleDocuments[type];
+            if (doc) {
+                extractedText = doc.content;
+                currentDocumentTitle = doc.title;
+                displayFileInfo({
+                    name: doc.title,
+                    size: doc.content.length,
+                    type: doc.type,
+                    lastModified: new Date()
+                });
+                document.getElementById('generateBtn').disabled = false;
+                showStatus(`Sample document "${doc.title}" loaded successfully!`, 'success');
+            }
+        }
+
+        function displayFileInfo(file) {
+            const fileInfo = document.getElementById('fileInfo');
+            const fileDetails = document.getElementById('fileDetails');
+            
+            const sizeDisplay = file.size ? `${(file.size / 1024).toFixed(2)} KB` : 'N/A';
+            const wordCount = extractedText ? extractedText.split(/\s+/).length : 0;
+            
+            fileDetails.innerHTML = `
+                <strong>Name:</strong> ${file.name}<br>
+                <strong>Size:</strong> ${sizeDisplay}<br>
+                <strong>Type:</strong> ${file.type || 'Sample Document'}<br>
+                <strong>Words:</strong> ~${wordCount} words<br>
+                <strong>Status:</strong> <span style="color: #28a745;">✓ Ready for processing</span>
+            `;
+            
+            fileInfo.style.display = 'block';
+        }
+
+        async function generateSummary() {
+            if (!extractedText || extractedText.trim().length === 0) {
+                showStatus('Please load a document first', 'error');
+                return;
+            }
+
+            // Start processing
+            document.getElementById('generateBtn').disabled = true;
+            document.getElementById('spinner').style.display = 'block';
+            showStatus('Analyzing document content...', 'info');
+            showProgress(0);
+
+            try {
+                // Simulate processing time for better UX
+                await simulateProgress();
+
+                // Generate summary
+                const summary = generateSmartSummary(extractedText, selectedLength);
+                displaySummary(summary);
+
+                showProgress(100);
+                showStatus('Summary generated successfully!', 'success');
+
+            } catch (error) {
+                console.error('Error processing document:', error);
+                showStatus(`Error processing document: ${error.message}`, 'error');
+            } finally {
+                // Reset UI
+                setTimeout(() => {
+                    document.getElementById('generateBtn').disabled = false;
+                    document.getElementById('spinner').style.display = 'none';
+                    hideProgress();
+                }, 1000);
+            }
+        }
+
+        async function simulateProgress() {
+            // Simulate processing steps
+            const steps = [
+                { progress: 20, message: 'Parsing document structure...' },
+                { progress: 40, message: 'Extracting key sentences...' },
+                { progress: 60, message: 'Analyzing content importance...' },
+                { progress: 80, message: 'Generating summary...' },
+            ];
+
+            for (const step of steps) {
+                await new Promise(resolve => setTimeout(resolve, 800));
+                showProgress(step.progress);
+                showStatus(step.message, 'info');
+            }
+        }
+
+        function generateSmartSummary(text, length) {
+            if (!text || text.trim().length === 0) {
+                throw new Error('No text found in document');
+            }
+
+            // Clean and prepare text
+            const cleanText = text.replace(/\s+/g, ' ').trim();
+            const sentences = cleanText.split(/[.!?]+/).filter(s => s.trim().length > 15);
+            
+            if (sentences.length === 0) {
+                throw new Error('No meaningful content found in document');
+            }
+
+            // Create word frequency map for importance scoring
+            const words = cleanText.toLowerCase().split(/\s+/);
+            const wordFreq = {};
+            const stopWords = new Set(['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'is', 'are', 'was', 'were', 'be', 'been', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'must', 'shall', 'can', 'this', 'that', 'these', 'those', 'i', 'you', 'he', 'she', 'it', 'we', 'they', 'me', 'him', 'her', 'us', 'them']);
+            
+            words.forEach(word => {
+                const cleanWord = word.replace(/[^\w]/g, '').toLowerCase();
+                if (cleanWord.length > 2 && !stopWords.has(cleanWord)) {
+                    wordFreq[cleanWord] = (wordFreq[cleanWord] || 0) + 1;
+                }
+            });
+
+            // Score sentences based on multiple factors
+            const scoredSentences = sentences.map((sentence, index) => {
+                let score = 0;
+                const sentenceWords = sentence.toLowerCase().split(/\s+/);
+                
+                // Word frequency score
+                sentenceWords.forEach(word => {
+                    const cleanWord = word.replace(/[^\w]/g, '').toLowerCase();
+                    if (wordFreq[cleanWord]) {
+                        score += wordFreq[cleanWord];
+                    }
+                });
+                
+                // Important keywords boost
+                const importantWords = ['important', 'key', 'main', 'primary', 'significant', 'crucial', 'essential', 'major', 'critical', 'fundamental', 'breakthrough', 'innovative', 'successful', 'growth', 'increase', 'improvement', 'result', 'conclusion', 'finding', 'discovery', 'analysis', 'research', 'study', 'data', 'evidence'];
+                const conclusionWords = ['therefore', 'thus', 'in conclusion', 'finally', 'ultimately', 'consequently', 'as a result', 'in summary', 'overall', 'to conclude'];
+                const quantifiers = ['percent', '%', 'million', 'billion', 'thousand', 'increase', 'decrease', 'doubled', 'tripled', 'reduced', 'improved'];
+                
+                sentenceWords.forEach(word => {
+                    const cleanWord = word.replace(/[^\w]/g, '').toLowerCase();
+                    if (importantWords.includes(cleanWord)) score += 3;
+                    if (conclusionWords.includes(cleanWord)) score += 4;
+                    if (quantifiers.includes(cleanWord)) score += 2;
+                });
+                
+                // Position-based scoring (beginning and end are often important)
+                if (index < Math.min(3, sentences.length * 0.1)) score += 2; // First few sentences
+                if (index >= sentences.length - Math.min(3, sentences.length * 0.1)) score += 2; // Last few sentences
+                
+                // Length-based scoring
+                const wordCount = sentenceWords.length;
+                if (wordCount >= 8 && wordCount <= 30) score += 1; // Optimal length
+                if (wordCount < 5 || wordCount > 35) score -= 2; // Too short or too long
+                
+                // Numbers and dates boost (often contain important facts)
+                if (/\d/.test(sentence)) score += 2;
+                
+                // Capitalized words (proper nouns, acronyms) boost
+                const capitalizedWords = sentence.match(/\b[A-Z][A-Za-z]*\b/g) || [];
+                score += Math.min(capitalizedWords.length * 0.5, 3);
+
+                return { 
+                    sentence: sentence.trim(), 
+                    score: score / sentenceWords.length, // Normalize by length
+                    index: index,
+                    wordCount: wordCount
+                };
+            });
+
+            // Sort by score and select sentences based on target word count
+            scoredSentences.sort((a, b) => b.score - a.score);
+            
+            let targetWordCount;
+            let keyPointsCount;
+            
+            switch (length) {
+                case 'short':
+                    targetWordCount = { min: 50, max: 75 };
+                    keyPointsCount = 3;
+                    break;
+                case 'medium':
+                    targetWordCount = { min: 100, max: 150 };
+                    keyPointsCount = 4;
+                    break;
+                case 'long':
+                    targetWordCount = { min: 200, max: 250 };
+                    keyPointsCount = 5;
+                    break;
+                default:
+                    targetWordCount = { min: 50, max: 75 };
+                    keyPointsCount = 3;
+            }
+
+            // Select sentences to meet target word count
+            const selectedSentences = [];
+            let currentWordCount = 0;
+            
+            for (const sentenceObj of scoredSentences) {
+                const sentenceWordCount = sentenceObj.wordCount;
+                
+                // Add sentence if it doesn't exceed max word count
+                if (currentWordCount + sentenceWordCount <= targetWordCount.max) {
+                    selectedSentences.push(sentenceObj);
+                    currentWordCount += sentenceWordCount;
+                    
+                    // Stop if we've reached the minimum and adding more would be too much
+                    if (currentWordCount >= targetWordCount.min) {
+                        // Check if next sentence would exceed max significantly
+                        const nextSentence = scoredSentences[selectedSentences.length];
+                        if (!nextSentence || currentWordCount + nextSentence.wordCount > targetWordCount.max) {
+                            break;
+                        }
+                    }
+                }
+                
+                // If we haven't reached minimum, try to add shorter sentences
+                if (currentWordCount < targetWordCount.min && sentenceWordCount <= 15) {
+                    const remainingWords = targetWordCount.max - currentWordCount;
+                    if (sentenceWordCount <= remainingWords) {
+                        selectedSentences.push(sentenceObj);
+                        currentWordCount += sentenceWordCount;
+                    }
+                }
+            }
+            
+            // Ensure we have at least some content
+            if (selectedSentences.length === 0 && scoredSentences.length > 0) {
+                selectedSentences.push(scoredSentences[0]);
+                currentWordCount = scoredSentences[0].wordCount;
+            }
+            
+            // Sort selected sentences back to original order for better flow
+            selectedSentences.sort((a, b) => a.index - b.index);
+            
+            const summaryText = selectedSentences.map(item => item.sentence).join('. ') + '.';
+
+            // Extract key points (top scoring unique sentences, limited by keyPointsCount)
+            const keyPoints = scoredSentences
+                .slice(0, Math.min(keyPointsCount, scoredSentences.length))
+                .map(item => item.sentence)
+                .filter(sentence => sentence.length > 20) // Filter out very short sentences
+                .slice(0, keyPointsCount); // Ensure we don't exceed the target
+
+            return {
+                text: summaryText,
+                keyPoints: keyPoints,
+                wordCount: summaryText.split(/\s+/).length,
+                originalLength: cleanText.split(/\s+/).length,
+                compressionRatio: Math.round((1 - summaryText.split(/\s+/).length / cleanText.split(/\s+/).length) * 100),
+                targetLength: length
+            };
+        }
+
+        function displaySummary(summary) {
+            document.getElementById('summaryText').textContent = summary.text;
+            document.getElementById('wordCount').textContent = `${summary.wordCount} words`;
+            
+            // Display key points
+            const keyPointsContainer = document.getElementById('keyPoints');
+            keyPointsContainer.innerHTML = '<h3>🔑 Key Points:</h3>';
+            
+            summary.keyPoints.forEach((point, index) => {
+                const pointElement = document.createElement('div');
+                pointElement.className = 'key-point';
+                pointElement.innerHTML = `<strong>${index + 1}.</strong> ${point}`;
+                keyPointsContainer.appendChild(pointElement);
+            });
+
+            // Add summary statistics with target length info
+            const targetRanges = {
+                'short': '50-75 words',
+                'medium': '100-150 words', 
+                'long': '200-250 words'
+            };
+
+            const statsElement = document.createElement('div');
+            statsElement.innerHTML = `
+                <div style="margin-top: 25px; padding: 20px; background: linear-gradient(135deg, rgba(79, 172, 254, 0.1) 0%, rgba(0, 242, 254, 0.1) 100%); border-radius: 15px; border-left: 4px solid #4facfe;">
+                    <h4 style="color: #333; margin-bottom: 10px;">📈 Summary Statistics</h4>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; font-size: 0.9rem;">
+                        <div><strong>Original:</strong> ${summary.originalLength} words</div>
+                        <div><strong>Summary:</strong> ${summary.wordCount} words</div>
+                        <div><strong>Target Range:</strong> ${targetRanges[summary.targetLength]}</div>
+                        <div><strong>Reduction:</strong> ${summary.compressionRatio}%</div>
+                        <div><strong>Key Points:</strong> ${summary.keyPoints.length}</div>
+                        <div><strong>Length:</strong> ${summary.targetLength.charAt(0).toUpperCase() + summary.targetLength.slice(1)}</div>
+                    </div>
+                    <div style="margin-top: 10px; font-size: 0.8rem; color: #666;">
+                        ${summary.wordCount >= 50 && summary.wordCount <= 75 && summary.targetLength === 'short' ? '✅ Perfect length for short summary' :
+                          summary.wordCount >= 100 && summary.wordCount <= 150 && summary.targetLength === 'medium' ? '✅ Perfect length for medium summary' :
+                          summary.wordCount >= 200 && summary.wordCount <= 250 && summary.targetLength === 'long' ? '✅ Perfect length for long summary' :
+                          '📊 Summary optimized for content and readability'}
+                    </div>
+                </div>
+            `;
+            keyPointsContainer.appendChild(statsElement);
+
+            document.getElementById('summaryContainer').style.display = 'block';
+        }
+
+        function showStatus(message, type) {
+            const statusElement = document.getElementById('statusMessage');
+            statusElement.textContent = message;
+            statusElement.className = `status-message ${type}`;
+            statusElement.style.display = 'block';
+            
+            // Hide after 5 seconds for success/info messages
+            if (type !== 'error') {
+                setTimeout(() => {
+                    statusElement.style.display = 'none';
+                }, 6000);
+            }
+        }
+
+        function showProgress(percent) {
+            const progressBar = document.getElementById('progressBar');
+            const progressFill = document.getElementById('progressFill');
+            
+            progressBar.style.display = 'block';
+            progressFill.style.width = `${percent}%`;
+        }
+
+        function hideProgress() {
+            document.getElementById('progressBar').style.display = 'none';
+        }
+
+        function copyToClipboard() {
+            const summaryText = document.getElementById('summaryText').textContent;
+            const keyPointsElements = document.querySelectorAll('.key-point');
+            const keyPoints = Array.from(keyPointsElements).map(el => el.textContent).join('\n');
+            
+            const fullSummary = `DOCUMENT SUMMARY\n${'='.repeat(50)}\n\n${summaryText}\n\nKEY POINTS:\n${keyPoints}`;
+            
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(fullSummary).then(() => {
+                    showStatus('Summary copied to clipboard!', 'success');
+                }).catch(() => {
+                    fallbackCopyToClipboard(fullSummary);
+                });
+            } else {
+                fallbackCopyToClipboard(fullSummary);
+            }
+        }
+
+        function fallbackCopyToClipboard(text) {
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            textArea.style.position = 'fixed';
+            textArea.style.left = '-999999px';
+            textArea.style.top = '-999999px';
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            
+            try {
+                document.execCommand('copy');
+                showStatus('Summary copied to clipboard!', 'success');
+            } catch (err) {
+                showStatus('Could not copy to clipboard', 'error');
+            }
+            
+            document.body.removeChild(textArea);
+        }
+
+        function downloadSummary() {
+            const summaryText = document.getElementById('summaryText').textContent;
+            const keyPointsElements = document.querySelectorAll('.key-point');
+            const keyPoints = Array.from(keyPointsElements).map(el => el.textContent).join('\n');
+            const wordCount = document.getElementById('wordCount').textContent;
+            
+            const timestamp = new Date().toLocaleString();
+            const fullSummary = `DOCUMENT SUMMARY
+${'='.repeat(60)}
+
+Document: ${currentDocumentTitle}
+Generated: ${timestamp}
+Summary Length: ${wordCount}
+
+SUMMARY:
+${summaryText}
+
+KEY POINTS:
+${keyPoints}
+
+${'='.repeat(60)}
+Generated by Document Summary Assistant`;
+            
+            const blob = new Blob([fullSummary], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${currentDocumentTitle.replace(/\.[^/.]+$/, "")}_summary.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            showStatus('Summary downloaded successfully!', 'success');
+        }
+
+        // Initialize with a sample document on page load for demonstration
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                if (!currentFile && !extractedText) {
+                    loadSampleDocument('research');
+                    showStatus('Welcome! Sample research paper loaded. Try generating a summary!', 'info');
+                }
+            }, 1500);
+        });
+
+        // Error handling for external library failures
+        window.addEventListener('error', (e) => {
+            if (e.message.includes('Worker') || e.message.includes('pdf') || e.message.includes('tesseract')) {
+                console.log('External library error (expected in some environments):', e.message);
+            }
+        });
+    </script>
+</body>
+</html>
